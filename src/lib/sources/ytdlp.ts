@@ -128,7 +128,7 @@ export async function downloadWithYtDlp(opts: YtDlpOptions): Promise<string> {
   const outTemplate = path.join(opts.outputDir, "source.%(ext)s")
 
   const youtubeArgs: string[] = isYouTubeUrl(opts.url)
-    ? ["--extractor-args", "youtube:player_client=android,web,ios,tv_embedded"]
+    ? ["--extractor-args", "youtube:player_client=android,web,ios"]
     : []
 
   const args = [

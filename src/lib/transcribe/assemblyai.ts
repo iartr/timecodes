@@ -49,6 +49,7 @@ export async function transcribe(opts: TranscribeOptions): Promise<TranscribeRes
 
   const submitted = await client.transcripts.submit({
     audio: uploadUrl,
+    speech_model: "universal",
     language_detection: true,
     punctuate: true,
     format_text: true,
