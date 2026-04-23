@@ -125,7 +125,7 @@ export async function downloadWithYtDlp(opts: YtDlpOptions): Promise<string> {
     "--progress",
     "--verbose",
     "-f",
-    "bestaudio/best",
+    "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
     "-x",
     "--audio-format",
     "mp3",
@@ -190,7 +190,7 @@ export async function downloadWithYtDlp(opts: YtDlpOptions): Promise<string> {
 
     if (code !== 0) {
       const tail = stderr.slice(-800).trim()
-      const needsAuth = /sign in|cookies|confirm you.?re not a bot|age/i.test(tail)
+      const needsAuth = /sign in|sign-in|please log in|confirm you.?re not a bot|age.restrict/i.test(tail)
       if (needsAuth) {
         log.error("yt-dlp authentication required", {
           cookies: cookies.description,
