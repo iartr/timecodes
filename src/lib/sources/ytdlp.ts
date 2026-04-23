@@ -109,6 +109,15 @@ function parseExtraArgs(raw?: string): string[] {
   return out
 }
 
+function isYouTubeUrl(url: string): boolean {
+  try {
+    const u = new URL(url)
+    return /(^|\.)youtube\.com$/i.test(u.hostname) || /(^|\.)youtu\.be$/i.test(u.hostname)
+  } catch {
+    return false
+  }
+}
+
 export async function downloadWithYtDlp(opts: YtDlpOptions): Promise<string> {
   const ytDlp = await resolveYtDlp()
   const version = await getYtDlpVersion(ytDlp)
@@ -117,6 +126,10 @@ export async function downloadWithYtDlp(opts: YtDlpOptions): Promise<string> {
   const cookies = await resolveCookies(opts.outputDir)
   const extraArgs = parseExtraArgs(env().YTDLP_EXTRA_ARGS)
   const outTemplate = path.join(opts.outputDir, "source.%(ext)s")
+
+  const youtubeArgs: string[] = isYouTubeUrl(opts.url)
+    ? ["--extractor-args", "youtube:player_client=android,web,ios,tv_embedded"]
+    : []
 
   const args = [
     "--no-playlist",
@@ -134,6 +147,7 @@ export async function downloadWithYtDlp(opts: YtDlpOptions): Promise<string> {
     "-o",
     outTemplate,
     ...cookies.args,
+    ...youtubeArgs,
     ...extraArgs,
     opts.url,
   ]
@@ -191,17 +205,24 @@ export async function downloadWithYtDlp(opts: YtDlpOptions): Promise<string> {
     if (code !== 0) {
       const tail = stderr.slice(-800).trim()
       const needsAuth = /sign in|sign-in|please log in|confirm you.?re not a bot|age.restrict/i.test(tail)
-      if (needsAuth) {
-        log.error("yt-dlp authentication required", {
+      const formatUnavailable =
+        /requested format is not available|no video formats|no suitable formats/i.test(tail)
+      if (needsAuth || formatUnavailable) {
+        log.error("yt-dlp likely needs cookies", {
           cookies: cookies.description,
+          reason: needsAuth ? "auth-required" : "format-unavailable",
           tail,
         })
+        const header = formatUnavailable
+          ? "yt-dlp: YouTube не отдал форматы. Обычно это бот-детект на серверных IP: нужны cookies или они устарели."
+          : "yt-dlp: видео требует авторизации."
         throw new Error(
           [
-            "yt-dlp: видео требует авторизации.",
+            header,
             "На Railway опция --cookies-from-browser не работает (в контейнере нет браузера).",
             "Экспортируйте cookies из вашего браузера (Yandex Browser совместим с Chrome-форматом) в файл cookies.txt",
             "и задайте содержимое файла в переменной окружения YTDLP_COOKIES_CONTENT.",
+            `Текущий источник cookies: ${cookies.description}.`,
             "",
             "Лог (последние 800 байт):",
             tail,
