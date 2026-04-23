@@ -10,8 +10,12 @@ const schema = z.object({
   OPENAI_SYSTEM_PROMPT: z.string().default(DEFAULT_PROMPT),
   YTDLP_PATH: z.string().optional(),
   YTDLP_COOKIES_FROM_BROWSER: z.string().optional(),
+  YTDLP_COOKIES_FILE: z.string().optional(),
+  YTDLP_COOKIES_CONTENT: z.string().optional(),
+  YTDLP_EXTRA_ARGS: z.string().optional(),
   FFMPEG_PATH: z.string().optional(),
   MAX_UPLOAD_MB: z.coerce.number().positive().default(2048),
+  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 })
 
 let cached: z.infer<typeof schema> | null = null

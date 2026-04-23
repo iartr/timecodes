@@ -1,7 +1,11 @@
 import { createWriteStream } from "node:fs"
+import { promises as fs } from "node:fs"
 import { pipeline } from "node:stream/promises"
 import { Readable } from "node:stream"
 import path from "node:path"
+import { createLogger } from "@/lib/util/logger"
+
+const log = createLogger("yadisk")
 
 export interface YaDiskOptions {
   url: string
@@ -18,18 +22,28 @@ interface YaDiskDownloadResponse {
 
 export async function downloadFromYandexDisk(opts: YaDiskOptions): Promise<string> {
   const apiUrl = `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${encodeURIComponent(opts.url)}`
+  log.info("requesting download URL from Ya.Disk API", { publicUrl: opts.url })
+
   const metaResp = await fetch(apiUrl, { signal: opts.signal })
+  log.info("Ya.Disk API responded", { status: metaResp.status })
   if (!metaResp.ok) {
     if (metaResp.status === 404) {
+      log.error("Ya.Disk: file not found (404)")
       throw new Error("Яндекс.Диск: файл не найден. Убедитесь, что ссылка действует и файл публичный.")
     }
+    log.error("Ya.Disk API error", { status: metaResp.status })
     throw new Error(`Яндекс.Диск: API вернул ошибку (${metaResp.status})`)
   }
   const meta = (await metaResp.json()) as YaDiskDownloadResponse
-  if (!meta.href) throw new Error("Яндекс.Диск: не удалось получить ссылку на скачивание")
+  if (!meta.href) {
+    log.error("Ya.Disk: missing href in API response")
+    throw new Error("Яндекс.Диск: не удалось получить ссылку на скачивание")
+  }
 
+  log.info("fetching file", { method: meta.method })
   const fileResp = await fetch(meta.href, { signal: opts.signal })
   if (!fileResp.ok || !fileResp.body) {
+    log.error("Ya.Disk download failed", { status: fileResp.status })
     throw new Error(`Яндекс.Диск: скачивание вернуло ${fileResp.status}`)
   }
 
@@ -51,6 +65,7 @@ export async function downloadFromYandexDisk(opts: YaDiskOptions): Promise<strin
   }
 
   const outPath = path.join(opts.outputDir, `source.${ext}`)
+  log.info("downloading", { contentType, totalBytes: total, outPath })
   const ws = createWriteStream(outPath)
 
   let downloaded = 0
@@ -69,6 +84,8 @@ export async function downloadFromYandexDisk(opts: YaDiskOptions): Promise<strin
   }
 
   await pipeline(stream, ws)
+  const st = await fs.stat(outPath).catch(() => null)
+  log.info("download complete", { outPath, bytes: st?.size ?? downloaded })
   opts.onProgress?.(100)
   return outPath
 }

@@ -1,7 +1,11 @@
 import { createWriteStream } from "node:fs"
+import { promises as fs } from "node:fs"
 import { pipeline } from "node:stream/promises"
 import { Readable } from "node:stream"
 import path from "node:path"
+import { createLogger } from "@/lib/util/logger"
+
+const log = createLogger("upload")
 
 export interface UploadOptions {
   file: File
@@ -26,6 +30,12 @@ function pickExtension(filename: string, mime: string): string {
 export async function saveUpload(opts: UploadOptions): Promise<string> {
   const ext = pickExtension(opts.file.name, opts.file.type || "")
   const outPath = path.join(opts.outputDir, `source.${ext}`)
+  log.info("saving upload", {
+    name: opts.file.name,
+    type: opts.file.type,
+    bytes: opts.file.size,
+    outPath,
+  })
   const ws = createWriteStream(outPath)
 
   const total = opts.file.size
@@ -45,6 +55,8 @@ export async function saveUpload(opts: UploadOptions): Promise<string> {
     })
   }
   await pipeline(stream, ws)
+  const st = await fs.stat(outPath).catch(() => null)
+  log.info("upload saved", { outPath, bytes: st?.size ?? written })
   opts.onProgress?.(100)
   return outPath
 }

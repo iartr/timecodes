@@ -1,5 +1,8 @@
 import { getJob, subscribe } from "@/lib/jobs/store"
 import type { JobEvent } from "@/lib/jobs/types"
+import { createLogger } from "@/lib/util/logger"
+
+const log = createLogger("api:events")
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -13,8 +16,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params
   const job = getJob(id)
   if (!job) {
+    log.warn("SSE requested for unknown job", { id })
     return new Response("Job not found", { status: 404 })
   }
+  log.info("SSE client connected", { id, stage: job.stage })
 
   const encoder = new TextEncoder()
   let unsubscribe: (() => void) | null = null
@@ -45,6 +50,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       pingInterval = setInterval(() => safeEnqueue(`: ping\n\n`), 15000)
 
       req.signal.addEventListener("abort", () => {
+        log.info("SSE client disconnected", { id })
         cleanup()
         try {
           controller.close()

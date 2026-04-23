@@ -2,8 +2,11 @@ import OpenAI from "openai"
 import { zodResponseFormat } from "openai/helpers/zod"
 import { z } from "zod"
 import { env } from "@/lib/env"
+import { createLogger, redact } from "@/lib/util/logger"
 import { formatTimestamp, normalizeTimestamp } from "./format"
 import type { TranscribeWord } from "@/lib/transcribe/assemblyai"
+
+const log = createLogger("openai")
 
 const ChapterSchema = z.object({
   timestamp: z.string().describe("Таймкод в формате MM:SS или HH:MM:SS"),
@@ -54,6 +57,11 @@ function modelContextLimit(model: string): number {
 
 export async function generateChapters(opts: GenerateChaptersOptions): Promise<ChaptersResult> {
   const { OPENAI_API_KEY, OPENAI_MODEL, OPENAI_SYSTEM_PROMPT, OPENAI_TEMPERATURE } = env()
+  log.info("initializing client", {
+    apiKey: redact(OPENAI_API_KEY),
+    model: OPENAI_MODEL,
+    temperature: OPENAI_TEMPERATURE,
+  })
   const client = new OpenAI({ apiKey: OPENAI_API_KEY })
 
   const limit = modelContextLimit(OPENAI_MODEL)
@@ -65,6 +73,12 @@ export async function generateChapters(opts: GenerateChaptersOptions): Promise<C
     segmentSec = segmentSec * 2
     transcript = buildCompactTranscript(opts.words, segmentSec)
   }
+  log.info("built compact transcript", {
+    segmentSec,
+    estimatedTokens: estimateTokens(transcript),
+    budget,
+    transcriptLen: transcript.length,
+  })
 
   const durationHint =
     opts.durationMs > 3600 * 1000
@@ -73,24 +87,54 @@ export async function generateChapters(opts: GenerateChaptersOptions): Promise<C
 
   const userMessage = `${durationHint}\n\nРасшифровка (формат: [MM:SS] текст):\n\n${transcript}`
 
-  const completion = await client.chat.completions.parse(
-    {
-      model: OPENAI_MODEL,
-      temperature: OPENAI_TEMPERATURE,
-      messages: [
-        { role: "system", content: OPENAI_SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
-      ],
-      response_format: zodResponseFormat(ChaptersSchema, "chapters"),
-    },
-    { signal: opts.signal },
-  )
+  log.info("sending chat completion request", {
+    model: OPENAI_MODEL,
+    userMessageLen: userMessage.length,
+    systemPromptLen: OPENAI_SYSTEM_PROMPT.length,
+  })
+
+  const reqStart = Date.now()
+  let completion
+  try {
+    completion = await client.chat.completions.parse(
+      {
+        model: OPENAI_MODEL,
+        temperature: OPENAI_TEMPERATURE,
+        messages: [
+          { role: "system", content: OPENAI_SYSTEM_PROMPT },
+          { role: "user", content: userMessage },
+        ],
+        response_format: zodResponseFormat(ChaptersSchema, "chapters"),
+      },
+      { signal: opts.signal },
+    )
+  } catch (err) {
+    log.error("OpenAI request failed", {
+      ms: Date.now() - reqStart,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    throw err
+  }
+
+  log.info("OpenAI response received", {
+    ms: Date.now() - reqStart,
+    usage: completion.usage,
+    finishReason: completion.choices[0]?.finish_reason,
+    refusal: completion.choices[0]?.message.refusal,
+  })
 
   const parsed = completion.choices[0]?.message.parsed
-  if (!parsed) throw new Error("OpenAI вернул пустой ответ")
+  if (!parsed) {
+    log.error("OpenAI returned empty response", {
+      refusal: completion.choices[0]?.message.refusal,
+    })
+    throw new Error("OpenAI вернул пустой ответ")
+  }
 
-  return parsed.chapters.map((c) => ({
+  const chapters = parsed.chapters.map((c) => ({
     timestamp: normalizeTimestamp(c.timestamp, opts.durationMs),
     title: c.title.trim(),
   }))
+  log.info("chapters parsed", { count: chapters.length })
+  return chapters
 }
