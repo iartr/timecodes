@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Timecodes
 
-## Getting Started
+Веб-сервис для автоматической генерации таймкодов (глав) видео.
 
-First, run the development server:
+1. Загрузите видео файлом или вставьте ссылку (YouTube, Яндекс.Диск, Google Drive, или любая ссылка, поддерживаемая yt-dlp).
+2. Сервис извлекает аудио, отправляет в AssemblyAI для транскрипции, затем в OpenAI для генерации глав.
+3. Получаете готовый список таймкодов с кнопкой «Копировать всё».
+
+## Стек
+
+- Next.js 16 (App Router) + TypeScript + Tailwind CSS + shadcn/ui
+- AssemblyAI — транскрипция со словными таймстемпами
+- OpenAI Structured Outputs — генерация глав (настраиваемая модель и промпт)
+- yt-dlp + ffmpeg — источники и извлечение аудио
+
+## Локальный запуск
 
 ```bash
+cp .env.example .env.local  # задайте ASSEMBLYAI_API_KEY и OPENAI_API_KEY
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Откройте [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Требования: `ffmpeg` и `yt-dlp` в PATH (или задайте `FFMPEG_PATH` / `YTDLP_PATH`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Переменные окружения
 
-## Learn More
+| Переменная | Обяз. | Описание |
+|---|---|---|
+| `ASSEMBLYAI_API_KEY` | да | Ключ [AssemblyAI](https://www.assemblyai.com/app/api-keys) |
+| `OPENAI_API_KEY` | да | Ключ [OpenAI](https://platform.openai.com/api-keys) |
+| `OPENAI_MODEL` | — | Модель для генерации глав. Default: `gpt-4o-mini` |
+| `OPENAI_TEMPERATURE` | — | 0–2, default `0.3` |
+| `OPENAI_SYSTEM_PROMPT` | — | Системный промпт (есть разумный русский default) |
+| `YTDLP_PATH` | — | Абсолютный путь к `yt-dlp` (если не в PATH) |
+| `YTDLP_COOKIES_FROM_BROWSER` | — | `chrome` / `firefox` / `safari` — для age-gated YouTube |
+| `FFMPEG_PATH` | — | Абсолютный путь к `ffmpeg` (если не в PATH) |
+| `MAX_UPLOAD_MB` | — | Лимит размера загружаемого файла, default `2048` |
 
-To learn more about Next.js, take a look at the following resources:
+## Деплой на Railway
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+railway up
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Railway подхватит `Dockerfile` (multi-stage, внутри образа уже установлены `ffmpeg` и `yt-dlp`). Задайте переменные окружения через Railway UI.
 
-## Deploy on Vercel
+Конфиг: один инстанс (`numReplicas: 1`) — in-memory job store не делится между репликами.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Ограничения
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Транскрипция длинных видео занимает время: ~20–40% от длительности аудио на стороне AssemblyAI.
+- Для приватных / age-gated YouTube-видео укажите `YTDLP_COOKIES_FROM_BROWSER`.
+- При перезапуске сервера состояние незавершённых задач теряется (in-memory).
