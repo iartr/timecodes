@@ -10,16 +10,25 @@ const log = createLogger("openai")
 
 const ChapterSchema = z.object({
   timestamp: z.string().describe("Таймкод в формате MM:SS или HH:MM:SS"),
-  title: z.string().describe("Короткое название главы (2-6 слов)"),
+  title: z.string().describe("Конкретное название главы"),
+  description: z.string().describe("Одно предложение о том, что обсуждалось в этом фрагменте"),
 })
 
-const ChaptersSchema = z.object({
+const InterestingTopicSchema = z.object({
+  timestamp: z.string().describe("Таймкод в формате MM:SS или HH:MM:SS"),
+  title: z.string().describe("Короткое название интересного момента"),
+  reason: z.string().describe("Почему на этот момент стоит обратить внимание"),
+})
+
+const VideoAnalysisSchema = z.object({
+  summary: z.string().describe("Саммари видео на 3-5 предложений"),
   chapters: z.array(ChapterSchema).min(1).max(25),
+  interestingTopics: z.array(InterestingTopicSchema).min(1).max(8),
 })
 
-export type ChaptersResult = z.infer<typeof ChaptersSchema>["chapters"]
+export type VideoAnalysisResult = z.infer<typeof VideoAnalysisSchema>
 
-export interface GenerateChaptersOptions {
+export interface GenerateVideoAnalysisOptions {
   words: TranscribeWord[]
   durationMs: number
   signal?: AbortSignal
@@ -32,30 +41,53 @@ function estimateTokens(text: string): number {
 function buildCompactTranscript(words: TranscribeWord[], segmentSec: number): string {
   if (words.length === 0) return ""
   const segMs = segmentSec * 1000
-  const segments: { start: number; text: string[] }[] = []
-  let current: { start: number; text: string[] } | null = null
+  const segments: { start: number; end: number; text: string[] }[] = []
+  let current: { start: number; end: number; text: string[] } | null = null
 
   for (const w of words) {
     if (!current || w.start - current.start >= segMs) {
-      current = { start: Math.floor(w.start / segMs) * segMs, text: [] }
+      current = { start: Math.floor(w.start / segMs) * segMs, end: w.end, text: [] }
       segments.push(current)
     }
+    current.end = Math.max(current.end, w.end, w.start)
     current.text.push(w.text)
   }
 
   return segments
-    .map((s) => `[${formatTimestamp(s.start)}] ${s.text.join(" ").replace(/\s+/g, " ").trim()}`)
+    .map((s) => {
+      const text = s.text.join(" ").replace(/\s+/g, " ").trim()
+      return `[${formatTimestamp(s.start)}-${formatTimestamp(s.end)}] ${text}`
+    })
     .join("\n")
 }
 
 function modelContextLimit(model: string): number {
+  if (model.includes("gpt-5")) return 1_000_000
   if (model.includes("gpt-4o")) return 128_000
   if (model.includes("gpt-4.1")) return 1_000_000
   if (model.includes("o1") || model.includes("o3") || model.includes("o4")) return 200_000
   return 128_000
 }
 
-export async function generateChapters(opts: GenerateChaptersOptions): Promise<ChaptersResult> {
+function normalizeAnalysis(result: VideoAnalysisResult, durationMs: number): VideoAnalysisResult {
+  return {
+    summary: result.summary.trim(),
+    chapters: result.chapters.map((c) => ({
+      timestamp: normalizeTimestamp(c.timestamp, durationMs),
+      title: c.title.trim(),
+      description: c.description.trim(),
+    })),
+    interestingTopics: result.interestingTopics.map((t) => ({
+      timestamp: normalizeTimestamp(t.timestamp, durationMs),
+      title: t.title.trim(),
+      reason: t.reason.trim(),
+    })),
+  }
+}
+
+export async function generateVideoAnalysis(
+  opts: GenerateVideoAnalysisOptions,
+): Promise<VideoAnalysisResult> {
   const { OPENAI_API_KEY, OPENAI_MODEL, OPENAI_SYSTEM_PROMPT, OPENAI_TEMPERATURE } = env()
   log.info("initializing client", {
     apiKey: redact(OPENAI_API_KEY),
@@ -85,7 +117,15 @@ export async function generateChapters(opts: GenerateChaptersOptions): Promise<C
       ? `Длительность видео: ${formatTimestamp(opts.durationMs, true)} (используй формат HH:MM:SS).`
       : `Длительность видео: ${formatTimestamp(opts.durationMs)} (используй формат MM:SS).`
 
-  const userMessage = `${durationHint}\n\nРасшифровка (формат: [MM:SS] текст):\n\n${transcript}`
+  const timestampFormat = opts.durationMs > 3600 * 1000 ? "HH:MM:SS" : "MM:SS"
+  const userMessage = [
+    durationHint,
+    `Формат таймкодов в ответе: ${timestampFormat}.`,
+    `Расшифровка сгруппирована сегментами примерно по ${segmentSec} секунд.`,
+    "Формат расшифровки: [начало-конец] текст.",
+    "",
+    transcript,
+  ].join("\n")
 
   log.info("sending chat completion request", {
     model: OPENAI_MODEL,
@@ -104,7 +144,8 @@ export async function generateChapters(opts: GenerateChaptersOptions): Promise<C
           { role: "system", content: OPENAI_SYSTEM_PROMPT },
           { role: "user", content: userMessage },
         ],
-        response_format: zodResponseFormat(ChaptersSchema, "chapters"),
+        response_format: zodResponseFormat(VideoAnalysisSchema, "video_analysis"),
+        verbosity: OPENAI_MODEL.includes("gpt-5") ? "high" : undefined,
       },
       { signal: opts.signal },
     )
@@ -131,10 +172,11 @@ export async function generateChapters(opts: GenerateChaptersOptions): Promise<C
     throw new Error("OpenAI вернул пустой ответ")
   }
 
-  const chapters = parsed.chapters.map((c) => ({
-    timestamp: normalizeTimestamp(c.timestamp, opts.durationMs),
-    title: c.title.trim(),
-  }))
-  log.info("chapters parsed", { count: chapters.length })
-  return chapters
+  const analysis = normalizeAnalysis(parsed, opts.durationMs)
+  log.info("video analysis parsed", {
+    chapters: analysis.chapters.length,
+    interestingTopics: analysis.interestingTopics.length,
+    summaryLen: analysis.summary.length,
+  })
+  return analysis
 }

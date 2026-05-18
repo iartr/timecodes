@@ -6,7 +6,7 @@ import { downloadWithYtDlp } from "@/lib/sources/ytdlp"
 import { downloadFromYandexDisk } from "@/lib/sources/yadisk"
 import { extractAudio } from "@/lib/audio/extract"
 import { transcribe } from "@/lib/transcribe/assemblyai"
-import { generateChapters } from "@/lib/chapters/openai"
+import { generateVideoAnalysis } from "@/lib/chapters/openai"
 import { createLogger } from "@/lib/util/logger"
 
 export interface RunJobInput {
@@ -111,24 +111,30 @@ export async function runJob(input: RunJobInput): Promise<void> {
     }
 
     const videoDurationMs = transcript.durationMs || durationMs
-    setStage(id, "chapters", "OpenAI генерирует главы…")
+    setStage(id, "chapters", "OpenAI анализирует видео…")
     setProgress(id, 30)
-    const chaptersStart = Date.now()
+    const analysisStart = Date.now()
     log.info("stage:chapters — start", {
       words: transcript.words.length,
       videoDurationMs,
     })
-    const chapters = await generateChapters({
+    const analysis = await generateVideoAnalysis({
       words: transcript.words,
       durationMs: videoDurationMs,
     })
     log.info("stage:chapters — done", {
-      chapters: chapters.length,
-      ms: Date.now() - chaptersStart,
+      chapters: analysis.chapters.length,
+      interestingTopics: analysis.interestingTopics.length,
+      summaryLen: analysis.summary.length,
+      ms: Date.now() - analysisStart,
     })
 
-    completeJob(id, chapters, Math.floor(videoDurationMs / 1000))
-    log.info("job completed", { ms: Date.now() - jobStart, chapters: chapters.length })
+    completeJob(id, analysis, Math.floor(videoDurationMs / 1000))
+    log.info("job completed", {
+      ms: Date.now() - jobStart,
+      chapters: analysis.chapters.length,
+      interestingTopics: analysis.interestingTopics.length,
+    })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     const stack = err instanceof Error ? err.stack : undefined

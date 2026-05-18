@@ -12,6 +12,19 @@ export type SourceKind = "upload" | "youtube" | "yadisk" | "gdrive" | "generic"
 export interface Chapter {
   timestamp: string
   title: string
+  description: string
+}
+
+export interface InterestingTopic {
+  timestamp: string
+  title: string
+  reason: string
+}
+
+export interface VideoAnalysis {
+  summary: string
+  chapters: Chapter[]
+  interestingTopics: InterestingTopic[]
 }
 
 export interface JobState {
@@ -22,7 +35,9 @@ export interface JobState {
   sourceKind: SourceKind
   sourceLabel: string
   subStatus?: string
+  summary?: string
   chapters?: Chapter[]
+  interestingTopics?: InterestingTopic[]
   durationSec?: number
   error?: string
 }
@@ -31,6 +46,6 @@ export type JobEvent =
   | { type: "snapshot"; state: JobState }
   | { type: "stage"; stage: Stage; subStatus?: string }
   | { type: "progress"; progress: number; subStatus?: string }
-  | { type: "done"; chapters: Chapter[]; durationSec?: number }
+  | ({ type: "done"; durationSec?: number } & VideoAnalysis)
   | { type: "error"; error: string }
   | { type: "ping" }
