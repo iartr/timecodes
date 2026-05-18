@@ -37,8 +37,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
       safeEnqueue(sseFormat({ type: "snapshot", state: job }))
 
-      if (job.stage === "done" && job.chapters) {
-        safeEnqueue(sseFormat({ type: "done", chapters: job.chapters, durationSec: job.durationSec }))
+      if (job.stage === "done" && job.summary && job.chapters && job.interestingTopics) {
+        safeEnqueue(
+          sseFormat({
+            type: "done",
+            summary: job.summary,
+            chapters: job.chapters,
+            interestingTopics: job.interestingTopics,
+            durationSec: job.durationSec,
+          }),
+        )
       } else if (job.stage === "error" && job.error) {
         safeEnqueue(sseFormat({ type: "error", error: job.error }))
       }

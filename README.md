@@ -1,16 +1,16 @@
 # Timecodes
 
-Веб-сервис для автоматической генерации таймкодов (глав) видео.
+Веб-сервис для автоматического разбора видео: саммари, таймкоды и интересные моменты.
 
 1. Загрузите видео файлом или вставьте ссылку (YouTube, Яндекс.Диск, Google Drive, или любая ссылка, поддерживаемая yt-dlp).
-2. Сервис извлекает аудио, отправляет в AssemblyAI для транскрипции, затем в OpenAI для генерации глав.
-3. Получаете готовый список таймкодов с кнопкой «Копировать всё».
+2. Сервис извлекает аудио, отправляет в AssemblyAI для транскрипции, затем в OpenAI для структурированного разбора.
+3. Получаете саммари, подробные главы и интересные топики с кнопкой «Копировать всё».
 
 ## Стек
 
 - Next.js 16 (App Router) + TypeScript + Tailwind CSS + shadcn/ui
 - AssemblyAI — транскрипция со словными таймстемпами
-- OpenAI Structured Outputs — генерация глав (настраиваемая модель и промпт)
+- OpenAI Structured Outputs — генерация саммари, глав и интересных топиков
 - yt-dlp + ffmpeg — источники и извлечение аудио
 
 ## Локальный запуск
@@ -31,9 +31,9 @@ npm run dev
 |---|---|---|
 | `ASSEMBLYAI_API_KEY` | да | Ключ [AssemblyAI](https://www.assemblyai.com/app/api-keys) |
 | `OPENAI_API_KEY` | да | Ключ [OpenAI](https://platform.openai.com/api-keys) |
-| `OPENAI_MODEL` | — | Модель для генерации глав. Default: `gpt-4o-mini` |
+| `OPENAI_MODEL` | — | Модель для генерации разбора. Default: `gpt-5.5` |
 | `OPENAI_TEMPERATURE` | — | 0–2, default `0.3` |
-| `OPENAI_SYSTEM_PROMPT` | — | Системный промпт (есть разумный русский default) |
+| `OPENAI_SYSTEM_PROMPT` | — | Системный промпт. Если переопределён в деплое, обновите его под саммари, главы и интересные топики или удалите переменную для default |
 | `YTDLP_PATH` | — | Абсолютный путь к `yt-dlp` (если не в PATH) |
 | `YTDLP_COOKIES_FROM_BROWSER` | — | `chrome` / `firefox` / `safari` — только для локальной машины с установленным браузером. На Railway/Docker не работает |
 | `YTDLP_COOKIES_FILE` | — | Абсолютный путь к cookies.txt (Netscape-формат) |

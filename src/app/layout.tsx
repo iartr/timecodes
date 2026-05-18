@@ -20,9 +20,9 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Timecodes — таймкоды для видео",
+  title: "Timecodes — разбор видео",
   description:
-    "Загрузите видео или вставьте ссылку (YouTube, Яндекс.Диск, Google Drive) и получите готовые таймкоды глав.",
+    "Загрузите видео или вставьте ссылку (YouTube, Яндекс.Диск, Google Drive) и получите саммари, главы и интересные моменты.",
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

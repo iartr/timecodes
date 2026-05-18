@@ -12,7 +12,7 @@ import { UrlInput } from "./UrlInput"
 import { ProgressStepper } from "./ProgressStepper"
 import { ChaptersPanel } from "./ChaptersPanel"
 import { isHttpUrl } from "@/lib/sources/detect"
-import type { Chapter, JobEvent, Stage } from "@/lib/jobs/types"
+import type { Chapter, InterestingTopic, JobEvent, Stage } from "@/lib/jobs/types"
 
 interface Props {
   maxUploadMb: number
@@ -28,7 +28,9 @@ interface JobUI {
   progress: number
   subStatus?: string
   startedAt: number
+  summary?: string
   chapters?: Chapter[]
+  interestingTopics?: InterestingTopic[]
   error?: string
 }
 
@@ -99,7 +101,9 @@ export function HomeClient({ maxUploadMb }: Props) {
                   stage: nextStage,
                   progress: s.progress,
                   subStatus: s.subStatus,
+                  summary: s.summary,
                   chapters: s.chapters,
+                  interestingTopics: s.interestingTopics,
                   error: s.error,
                 }
               }
@@ -115,7 +119,14 @@ export function HomeClient({ maxUploadMb }: Props) {
                 }
               case "done":
                 es.close()
-                return { ...prev, stage: "done", progress: 100, chapters: event.chapters }
+                return {
+                  ...prev,
+                  stage: "done",
+                  progress: 100,
+                  summary: event.summary,
+                  chapters: event.chapters,
+                  interestingTopics: event.interestingTopics,
+                }
               case "error":
                 es.close()
                 return { ...prev, error: event.error }
@@ -137,7 +148,7 @@ export function HomeClient({ maxUploadMb }: Props) {
 
   const showInput = !job
   const showProgress = job && job.stage !== "done"
-  const showChapters = job?.stage === "done" && job.chapters
+  const showAnalysis = job?.stage === "done" && job.summary && job.chapters && job.interestingTopics
 
   return (
     <div className="space-y-6">
@@ -153,10 +164,10 @@ export function HomeClient({ maxUploadMb }: Props) {
           >
             <div className="space-y-2 text-center">
               <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                Таймкоды за пару минут
+                Разбор видео за пару минут
               </h1>
               <p className="mx-auto max-w-md text-sm text-muted-foreground">
-                Загрузите видео или вставьте ссылку — получите готовые главы с таймкодами.
+                Загрузите видео или вставьте ссылку — получите саммари, главы и важные моменты.
               </p>
             </div>
 
@@ -191,7 +202,7 @@ export function HomeClient({ maxUploadMb }: Props) {
                   size="lg"
                 >
                   <Sparkles className="h-4 w-4" />
-                  Сгенерировать таймкоды
+                  Сгенерировать разбор
                 </Button>
               </CardContent>
             </Card>
@@ -222,15 +233,20 @@ export function HomeClient({ maxUploadMb }: Props) {
           </motion.div>
         )}
 
-        {showChapters && job?.chapters && (
+        {showAnalysis && job?.summary && job?.chapters && job?.interestingTopics && (
           <motion.div
-            key="chapters"
+            key="analysis"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2 }}
           >
-            <ChaptersPanel chapters={job.chapters} onReset={reset} />
+            <ChaptersPanel
+              summary={job.summary}
+              chapters={job.chapters}
+              interestingTopics={job.interestingTopics}
+              onReset={reset}
+            />
           </motion.div>
         )}
       </AnimatePresence>

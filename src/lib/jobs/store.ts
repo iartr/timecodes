@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events"
-import type { JobEvent, JobState, Stage } from "./types"
+import type { JobEvent, JobState, Stage, VideoAnalysis } from "./types"
 
 type GlobalJobStore = {
   jobs: Map<string, JobState>
@@ -47,16 +47,28 @@ export function setProgress(id: string, progress: number, subStatus?: string) {
   emit(id, { type: "progress", progress: job.progress, subStatus })
 }
 
-export function completeJob(id: string, chapters: JobState["chapters"], durationSec?: number) {
+export function completeJob(
+  id: string,
+  analysis: VideoAnalysis,
+  durationSec?: number,
+) {
   const store = getStore()
   const job = store.jobs.get(id)
   if (!job) return
   job.stage = "done"
   job.progress = 100
-  job.chapters = chapters
+  job.summary = analysis.summary
+  job.chapters = analysis.chapters
+  job.interestingTopics = analysis.interestingTopics
   job.durationSec = durationSec
   job.subStatus = undefined
-  emit(id, { type: "done", chapters: chapters ?? [], durationSec })
+  emit(id, {
+    type: "done",
+    summary: analysis.summary,
+    chapters: analysis.chapters,
+    interestingTopics: analysis.interestingTopics,
+    durationSec,
+  })
 }
 
 export function failJob(id: string, error: string) {

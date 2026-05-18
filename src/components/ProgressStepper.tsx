@@ -11,7 +11,7 @@ const STEPS: { key: Stage; label: string; icon: typeof Download }[] = [
   { key: "source", label: "Загрузка", icon: Download },
   { key: "audio", label: "Аудио", icon: AudioLines },
   { key: "transcribe", label: "Транскрипция", icon: FileText },
-  { key: "chapters", label: "Главы", icon: Sparkles },
+  { key: "chapters", label: "Разбор", icon: Sparkles },
 ]
 
 interface Props {

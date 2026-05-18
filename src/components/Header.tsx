@@ -2,13 +2,20 @@
 
 import { useTheme } from "next-themes"
 import { Moon, Sun, AudioLines } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useSyncExternalStore } from "react"
 import { Button } from "@/components/ui/button"
+
+const subscribe = () => () => {}
+const getClientSnapshot = () => true
+const getServerSnapshot = () => false
+
+function useMounted() {
+  return useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot)
+}
 
 export function Header() {
   const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const mounted = useMounted()
 
   return (
     <header className="w-full border-b border-border/60 bg-background/80 backdrop-blur-sm sticky top-0 z-10">
@@ -19,7 +26,7 @@ export function Header() {
           </div>
           <div className="flex flex-col leading-none">
             <span className="text-base font-semibold tracking-tight">Timecodes</span>
-            <span className="text-[11px] text-muted-foreground">Таймкоды для видео</span>
+            <span className="text-[11px] text-muted-foreground">Разбор видео</span>
           </div>
         </div>
         {mounted && (
